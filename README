@@ -1,0 +1,51 @@
+Tools for unittesting asynchronous code that uses Tornadio's I/O loop.
+
+AssertEventuallyEqual:
+
+A TestCase class lets you register any number of functions which are called
+periodically until they equal their expected values, or time out. The last
+function that succeeds or times out stops the IOLoop, so your test definitely
+finishes. The timeout is configurable, either as an argument to
+assertEventuallyEqual()</code> or as an environment variable TIMEOUT_SEC.
+Setting a very large timeout value in your environment is useful for debugging
+a misbehaving unittest&mdash;set it to a million seconds so you don't time out
+while you're stepping through the code.
+
+PuritanicalTest:
+
+A TestCase class that overrides Tornado's default I/O loop with a
+PuritanicalIOLoop. Tornado's default loop suppresses exceptions, but the
+puritanical loop quits and raises an exception if any exception is raised by one
+of its callbacks. This ensures that your unittests catch errors in callbacks.
+
+Example:
+
+def async_calculate(callback):
+    """
+    @param callback:    A function taking params (result, error)
+    """
+    # Do something profoundly complex requiring non-blocking I/O, which
+    # will complete in one second
+    ioloop.IOLoop.instance().add_timeout(
+        time.time() + 1,
+        lambda: callback(42, None)
+    )
+
+class AsyncTest(
+    eventually.AssertEventuallyTest,
+    puritanical.PuritanicalTest
+):
+    def test_find(self):
+        results = []
+        def callback(result, error):
+            print 'Got result', result
+            results.append(result)
+
+        async_calculate(callback)
+
+        self.assertEventuallyEqual(
+            42,
+            lambda: results and results[0]
+        )
+
+        ioloop.IOLoop.instance().start()
